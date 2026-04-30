@@ -701,8 +701,8 @@ function hostGame(){
   isHost=true;
   peer=new Peer('dz-'+code.toLowerCase(),{debug:0});
   peer.on('open',id=>{
-    myPeerId=id;
-    lobbyPlayers[id]={username:currentUser.username,skin:currentUser.skin};
+    myPeerId='host';
+    lobbyPlayers['host']={username:currentUser.username,skin:currentUser.skin};
     renderLobbyPlayers();
     document.getElementById('start-btn').disabled=false;
   });
@@ -731,12 +731,12 @@ function joinGame(){
   isHost=false;
   peer=new Peer(undefined,{debug:0});
   peer.on('open',id=>{
-    myPeerId=id;
+    myPeerId=id; // keep real peer ID for client — host uses this to route messages
     const conn=peer.connect('dz-'+code.toLowerCase(),{reliable:true});
     connections['host']=conn;
     conn.on('open',()=>{
       document.getElementById('room-status').textContent='Conectado!';
-      conn.send({type:'join',username:currentUser.username,skin:currentUser.skin});
+      conn.send({type:'join',username:currentUser.username,skin:currentUser.skin,peerId:id});
     });
     conn.on('data',data=>clientReceive(data));
     conn.on('close',()=>{notify('Host desconectou',true);backToMenu();});
@@ -760,8 +760,8 @@ function hostReceive(fromId,data){
   if(data.type==='join'){
     lobbyPlayers[fromId]={username:data.username,skin:data.skin};
     renderLobbyPlayers();
-    // Tell client current lobby state
-    connections[fromId]?.send({type:'lobbyState',players:lobbyPlayers});
+    // Tell client their assigned ID and current lobby
+    connections[fromId]?.send({type:'joined',yourId:fromId,players:lobbyPlayers});
     // Tell everyone else
     Object.entries(connections).forEach(([id,c])=>{if(id!==fromId)c.send({type:'playerJoined',peerId:fromId,username:data.username,skin:data.skin});});
   }
@@ -778,6 +778,10 @@ function hostReceive(fromId,data){
 
 // Client receives from host
 function clientReceive(data){
+  if(data.type==='joined'){
+    myPeerId=data.yourId; // server-assigned ID
+    lobbyPlayers=data.players;renderLobbyPlayers();
+  }
   if(data.type==='lobbyState'){lobbyPlayers=data.players;renderLobbyPlayers();}
   if(data.type==='playerJoined'){lobbyPlayers[data.peerId]={username:data.username,skin:data.skin};renderLobbyPlayers();}
   if(data.type==='start'){WALLS=data.walls;TREES=data.trees;BUILDINGS=data.buildings;initGame();showScreen('screen-game');}
@@ -965,8 +969,6 @@ function hostTick(){
   // Players
   for(const p of Object.values(gameState.players)){
     if(p.dead||p.hp<=0)continue;
-    // My keys for my player (host controls their own character directly)
-    if(p.id===myPeerId){p.keys={...myKeys};p.aimAngle=myAim;}
 
     const wantSprint=p.keys.sprint&&(p.keys.up||p.keys.down||p.keys.left||p.keys.right);
     const canSprint=wantSprint&&p.stamina>5;
@@ -1117,24 +1119,34 @@ window.addEventListener('keyup',e=>{
 canvas.addEventListener('mousemove',e=>{
   const me=renderState.players.find(p=>p.id===myPeerId);if(!me)return;
   myAim=Math.atan2(e.clientY-(me.y-camY),e.clientX-(me.x-camX));
+  if(!isHost) sendInput(); // clients send aim continuously
 });
 canvas.addEventListener('mousedown',e=>{if(e.button===0){myMouseDown=true;tryShoot();}});
 canvas.addEventListener('mouseup',e=>{if(e.button===0)myMouseDown=false;});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-setInterval(()=>{if(myMouseDown&&gameRunning)tryShoot();if(gameRunning)sendInput();},50);
+setInterval(()=>{
+  if(!gameRunning)return;
+  if(myMouseDown)tryShoot();
+  sendInput(); // heartbeat so host always has latest keys
+},50);
 
 function tryShoot(){
   if(!gameRunning)return;
-  const me=gameState.players[myPeerId];
+  const me=isHost?gameState.players[myPeerId]:null;
   const wpn=WEAPONS[me?.weapon||'fists']||{cd:12};
   const now=Date.now();if(now-myLastShot<(wpn.cd||12)*50)return;
   myLastShot=now;
-  if(isHost){if(me)me.wantShoot=true;}
-  else connections['host']?.send({type:'input',keys:{...myKeys},aim:myAim,shoot:true});
+  sendInput(true);
 }
 
-function sendInput(){
-  if(!isHost)connections['host']?.send({type:'input',keys:{...myKeys},aim:myAim,shoot:false});
+function sendInput(shoot=false){
+  if(!gameRunning)return;
+  if(isHost){
+    const p=gameState.players[myPeerId];
+    if(p){p.keys={...myKeys};p.aimAngle=myAim;if(shoot)p.wantShoot=true;}
+  }else{
+    connections['host']?.send({type:'input',keys:{...myKeys},aim:myAim,shoot});
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
