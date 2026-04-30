@@ -678,48 +678,44 @@ function joinServer(){
   document.getElementById('room-status').textContent='Conectando à sala...';
   peer=new Peer(undefined,{debug:0});
   peer.on('open',id=>{
-    myPeerId=id;
-    // Try to connect to the fixed room host
-    const conn=peer.connect(ROOM_ID,{reliable:true});
+    myPeerId=id; // ID temporário até o host confirmar
+    // Tenta conectar ao host fixo
+    const conn=peer.connect(ROOM_ID,{reliable:true,serialization:'json'});
     let connected=false;
+
     conn.on('open',()=>{
       connected=true;
       isHost=false;
       connections['host']=conn;
-      document.getElementById('room-status').textContent='Entrando na sala...';
+      document.getElementById('room-status').textContent='Conectado! Entrando...';
       conn.send({type:'join',username:currentUser.username,skin:currentUser.skin});
-      conn.on('data',data=>clientReceive(data));
-      conn.on('close',()=>{
-        // Host disconnected — try to become new host
-        notify('Host saiu, reconectando...',true);
-        setTimeout(()=>becomeHost(),1500);
-      });
     });
-    conn.on('error',()=>{
-      if(!connected) becomeHost();
+    conn.on('data',data=>clientReceive(data));
+    conn.on('close',()=>{
+      notify('Host saiu, reconectando...',true);
+      setTimeout(()=>{if(!isHost)becomeHost();},2000);
     });
-    // If no connection after 2s, become host
-    setTimeout(()=>{ if(!connected) becomeHost(); },2000);
+    conn.on('error',()=>{if(!connected)becomeHost();});
+
+    // Timeout: se não conectar em 3s, vira host
+    setTimeout(()=>{if(!connected){conn.close();becomeHost();}},3000);
   });
-  peer.on('error',e=>{
-    if(e.type==='unavailable-id'||e.type==='peer-unavailable') becomeHost();
-    else document.getElementById('room-status').textContent='Erro: '+e.type;
-  });
+  peer.on('error',()=>becomeHost());
 }
 
 function becomeHost(){
-  // Destroy previous peer and create one with fixed room ID
-  if(peer) peer.destroy();
+  if(peer){peer.destroy();peer=null;}
   isHost=true;
+  connections={};
   peer=new Peer(ROOM_ID,{debug:0});
   peer.on('open',()=>{
     myPeerId='host';
-    lobbyPlayers['host']={username:currentUser.username,skin:currentUser.skin};
     document.getElementById('room-status').textContent='Sala criada! Iniciando...';
-    buildMap();spawnWorldDrops();
-    // Add yourself
+    buildMap();
+    gameState={players:{},zombies:[],bullets:[],drops:[],gangs:{}};
+    spawnWorldDrops();
+    // Cria o jogador host
     const sp=safeSpawn();
-    gameState={players:{},zombies:[],bullets:[],drops:gameState.drops||[],gangs:{}};
     gameState.players['host']={
       id:'host',username:currentUser.username,skin:currentUser.skin,
       x:sp.x,y:sp.y,hp:MAX_HP,armor:0,ammoInv:{},weapon:'fists',
@@ -739,7 +735,8 @@ function becomeHost(){
       conn.on('close',()=>{
         delete connections[conn.peer];
         delete lobbyPlayers[conn.peer];
-        if(gameRunning) removePlayer(conn.peer);
+        if(gameRunning)removePlayer(conn.peer);
+        notify('🔴 Jogador saiu');
       });
     });
   });
@@ -780,10 +777,12 @@ function hostReceive(fromId,data){
 // Client receives from host
 function clientReceive(data){
   if(data.type==='joined'){
-    myPeerId=data.yourId;
+    myPeerId=data.yourId; // ID que o host usa pra identificar este jogador
     WALLS=data.walls;TREES=data.trees;BUILDINGS=data.buildings;
     grassPatCache=null;
     gameRunning=true;gameTick=0;
+    // Começa a mandar inputs imediatamente
+    sendInput();
     requestAnimationFrame(renderLoop);
     showScreen('screen-game');
     notify('🟢 Entrou na zona!');
@@ -1134,12 +1133,15 @@ function tryShoot(){
 }
 
 function sendInput(shoot=false){
-  if(!gameRunning)return;
+  if(!gameRunning||!myPeerId)return;
   if(isHost){
     const p=gameState.players[myPeerId];
     if(p){p.keys={...myKeys};p.aimAngle=myAim;if(shoot)p.wantShoot=true;}
   }else{
-    connections['host']?.send({type:'input',keys:{...myKeys},aim:myAim,shoot});
+    const conn=connections['host'];
+    if(conn&&conn.open){
+      conn.send({type:'input',keys:{...myKeys},aim:myAim,shoot});
+    }
   }
 }
 
