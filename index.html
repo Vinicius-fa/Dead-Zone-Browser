@@ -277,37 +277,8 @@ input{font-family:'Share Tech Mono',monospace;outline:none;border:none}
 
     <!-- Play options -->
     <div class="play-opts hidden" id="play-opts">
-      <div class="play-opt" onclick="hostGame()">
-        <div class="play-opt-icon">🏠</div>
-        <div class="play-opt-text">
-          <div class="play-opt-title">CRIAR SALA</div>
-          <div class="play-opt-desc">Você vira o host — gera um código e chama seus amigos</div>
-        </div>
-      </div>
-      <div class="play-opt" onclick="showJoinUI()">
-        <div class="play-opt-icon">🔗</div>
-        <div class="play-opt-text">
-          <div class="play-opt-title">ENTRAR EM SALA</div>
-          <div class="play-opt-desc">Digite o código de 6 letras da sala do seu amigo</div>
-        </div>
-      </div>
-      <div class="play-opt" onclick="soloGame()">
-        <div class="play-opt-icon">💀</div>
-        <div class="play-opt-text">
-          <div class="play-opt-title">SOLO</div>
-          <div class="play-opt-desc">Jogue sozinho, sem necessidade de conexão</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Join code input (hidden initially) -->
-    <div class="hidden" id="join-ui" style="width:100%">
-      <div class="code-input-row">
-        <input id="join-code" type="text" maxlength="6" placeholder="CÓDIGO DA SALA" autocomplete="off"/>
-        <button class="btn-primary" style="width:auto;padding:10px 20px;font-size:1rem" onclick="joinGame()">IR</button>
-        <button class="btn-secondary" onclick="hideJoinUI()">✕</button>
-      </div>
-      <div style="font-size:.6rem;color:#2a2a2a;margin-top:6px;text-align:center">O código tem 6 letras e é gerado pelo host da sala</div>
+      <button class="btn-primary" onclick="joinServer()" style="font-size:1.4rem;padding:14px">▶ JOGAR</button>
+      <div style="font-size:.6rem;color:#2a2a2a;text-align:center;margin-top:-8px">Você entra automaticamente na sala com seus amigos</div>
     </div>
 
     <div class="hints-row">
@@ -321,23 +292,13 @@ input{font-family:'Share Tech Mono',monospace;outline:none;border:none}
   </div>
 </div>
 
-<!-- ══════════════ LOBBY SCREEN ══════════════ -->
+<!-- ══════════════ CONNECTING SCREEN ══════════════ -->
 <div id="screen-lobby" class="screen hidden">
   <div class="menu-bg"></div>
   <div class="menu-content">
-    <div class="logo" style="font-size:2rem;margin-bottom:0">☣ DEAD ZONE</div>
-    <div class="lobby-card" id="lobby-card">
-      <div class="lobby-title" id="lobby-title">AGUARDANDO...</div>
-      <div class="room-code" id="room-code">------</div>
-      <div class="room-status" id="room-status">Conectando...</div>
-      <div style="font-size:.6rem;color:#2a2a2a;text-align:center">Passe o código acima para seus amigos entrarem</div>
-      <div style="font-size:.6rem;color:#333;letter-spacing:2px;text-transform:uppercase">Jogadores na sala:</div>
-      <div class="players-list" id="lobby-players"></div>
-      <div style="display:flex;gap:8px">
-        <button class="mbtn" style="flex:1" onclick="backToMenu()">← VOLTAR</button>
-        <button class="mbtn ok" style="flex:1" id="start-btn" onclick="startGame()" disabled>▶ INICIAR</button>
-      </div>
-    </div>
+    <div class="logo" style="font-size:2rem">☣ DEAD ZONE</div>
+    <div style="color:#444;font-size:.75rem;letter-spacing:3px" id="room-status">Conectando...</div>
+    <button class="btn-secondary" style="margin-top:8px" onclick="backToMenu()">← VOLTAR</button>
   </div>
 </div>
 
@@ -586,7 +547,6 @@ function showLoggedOut(){
   document.getElementById('auth-box').classList.remove('hidden');
   document.getElementById('profile-bar').classList.add('hidden');
   document.getElementById('play-opts').classList.add('hidden');
-  document.getElementById('join-ui').classList.add('hidden');
 }
 function renderAvatar(){
   const av=document.getElementById('profile-avatar');
@@ -610,11 +570,20 @@ function showJoinUI(){document.getElementById('join-ui').classList.remove('hidde
 function hideJoinUI(){document.getElementById('join-ui').classList.add('hidden');}
 
 function backToMenu(){
-  isHost=false;stopGame();
+  stopGame();
   if(peer){peer.destroy();peer=null;}
   connections={};lobbyPlayers={};
+  gameState={players:{},zombies:[],bullets:[],drops:[],gangs:{}};
+  isHost=false;myPeerId=null;
+  document.getElementById('modal-death').classList.add('hidden');
+  document.getElementById('modal-shop').classList.add('hidden');
+  document.getElementById('modal-gang').classList.add('hidden');
+  shopOpen=false;gangModalOpen=false;
   showScreen('screen-menu');
-  if(currentUser){document.getElementById('stat-kills').textContent=currentUser.kills;document.getElementById('stat-money').textContent=currentUser.money;}
+  if(currentUser){
+    document.getElementById('stat-kills').textContent=currentUser.kills;
+    document.getElementById('stat-money').textContent=currentUser.money;
+  }
 }
 function openModal(id){
   document.getElementById(id).classList.remove('hidden');
@@ -696,85 +665,106 @@ function dist(a,b){return Math.sqrt(dist2(a,b));}
 let _id=1;function uid(){return _id++;}
 
 // ══════════════════════════════════════════════════════════════
-// NETWORKING (PeerJS WebRTC)
+// NETWORKING — Sala única automática
 // ══════════════════════════════════════════════════════════════
+// ID fixo da sala — todos tentam se conectar a este peer
+// Se ele não existir, o jogador vira host com esse ID
+const ROOM_ID = 'deadzone-main-room-v1';
 let peer=null,connections={},isHost=false,myPeerId=null;
-let lobbyPlayers={}; // id -> {username, skin}
+let lobbyPlayers={};
 
-function genCode(){return Math.random().toString(36).slice(2,8).toUpperCase();}
-
-function hostGame(){
-  const code=genCode();
+function joinServer(){
   showScreen('screen-lobby');
-  document.getElementById('room-code').textContent=code;
-  document.getElementById('lobby-title').textContent='SUA SALA';
-  document.getElementById('room-status').textContent='Aguardando jogadores...';
-  isHost=true;
-  peer=new Peer('dz-'+code.toLowerCase(),{debug:0});
+  document.getElementById('room-status').textContent='Conectando à sala...';
+  peer=new Peer(undefined,{debug:0});
   peer.on('open',id=>{
+    myPeerId=id;
+    // Try to connect to the fixed room host
+    const conn=peer.connect(ROOM_ID,{reliable:true});
+    let connected=false;
+    conn.on('open',()=>{
+      connected=true;
+      isHost=false;
+      connections['host']=conn;
+      document.getElementById('room-status').textContent='Entrando na sala...';
+      conn.send({type:'join',username:currentUser.username,skin:currentUser.skin});
+      conn.on('data',data=>clientReceive(data));
+      conn.on('close',()=>{
+        // Host disconnected — try to become new host
+        notify('Host saiu, reconectando...',true);
+        setTimeout(()=>becomeHost(),1500);
+      });
+    });
+    conn.on('error',()=>{
+      if(!connected) becomeHost();
+    });
+    // If no connection after 2s, become host
+    setTimeout(()=>{ if(!connected) becomeHost(); },2000);
+  });
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id'||e.type==='peer-unavailable') becomeHost();
+    else document.getElementById('room-status').textContent='Erro: '+e.type;
+  });
+}
+
+function becomeHost(){
+  // Destroy previous peer and create one with fixed room ID
+  if(peer) peer.destroy();
+  isHost=true;
+  peer=new Peer(ROOM_ID,{debug:0});
+  peer.on('open',()=>{
     myPeerId='host';
     lobbyPlayers['host']={username:currentUser.username,skin:currentUser.skin};
-    renderLobbyPlayers();
-    document.getElementById('start-btn').disabled=false;
+    document.getElementById('room-status').textContent='Sala criada! Iniciando...';
+    buildMap();spawnWorldDrops();
+    // Add yourself
+    const sp=safeSpawn();
+    gameState={players:{},zombies:[],bullets:[],drops:gameState.drops||[],gangs:{}};
+    gameState.players['host']={
+      id:'host',username:currentUser.username,skin:currentUser.skin,
+      x:sp.x,y:sp.y,hp:MAX_HP,armor:0,ammoInv:{},weapon:'fists',
+      kills:0,money:0,gangId:null,stamina:STAMINA_MAX,sprinting:false,
+      keys:{up:false,down:false,left:false,right:false,sprint:false},
+      aimAngle:0,wantShoot:false,shootCd:0,pendingPickup:null,buildingId:null,dead:false,
+    };
+    gameRunning=true;gameTick=0;
+    gameLoop=setInterval(hostTick,50);
+    requestAnimationFrame(renderLoop);
+    showScreen('screen-game');
   });
   peer.on('connection',conn=>{
     conn.on('open',()=>{
       connections[conn.peer]=conn;
       conn.on('data',data=>hostReceive(conn.peer,data));
       conn.on('close',()=>{
-        delete connections[conn.peer];delete lobbyPlayers[conn.peer];
-        renderLobbyPlayers();
-        if(gameRunning)removePlayer(conn.peer);
+        delete connections[conn.peer];
+        delete lobbyPlayers[conn.peer];
+        if(gameRunning) removePlayer(conn.peer);
       });
     });
   });
-  peer.on('error',e=>document.getElementById('room-status').textContent='Erro: '+e.type);
-}
-
-function joinGame(){
-  const code=document.getElementById('join-code').value.trim().toUpperCase();
-  if(code.length!==6){notify('Código inválido',true);return;}
-  showScreen('screen-lobby');
-  document.getElementById('room-code').textContent=code;
-  document.getElementById('lobby-title').textContent='ENTRANDO...';
-  document.getElementById('room-status').textContent='Conectando ao host...';
-  document.getElementById('start-btn').disabled=true;
-  isHost=false;
-  peer=new Peer(undefined,{debug:0});
-  peer.on('open',id=>{
-    myPeerId=id; // keep real peer ID for client — host uses this to route messages
-    const conn=peer.connect('dz-'+code.toLowerCase(),{reliable:true});
-    connections['host']=conn;
-    conn.on('open',()=>{
-      document.getElementById('room-status').textContent='Conectado!';
-      conn.send({type:'join',username:currentUser.username,skin:currentUser.skin,peerId:id});
-    });
-    conn.on('data',data=>clientReceive(data));
-    conn.on('close',()=>{notify('Host desconectou',true);backToMenu();});
+  peer.on('error',e=>{
+    document.getElementById('room-status').textContent='Erro: '+e.type;
   });
-  peer.on('error',e=>{document.getElementById('room-status').textContent='Erro: '+e.type;});
-}
-
-function soloGame(){isHost=true;myPeerId='solo';buildMap();initGame();showScreen('screen-game');}
-
-function startGame(){
-  if(!isHost)return;
-  buildMap();
-  // Send map + all players to everyone
-  const mapData={type:'start',walls:WALLS,trees:TREES,buildings:BUILDINGS,players:lobbyPlayers};
-  Object.values(connections).forEach(c=>c.send(mapData));
-  initGame();showScreen('screen-game');
 }
 
 // Host receives from clients
 function hostReceive(fromId,data){
   if(data.type==='join'){
+    // Add player to game immediately (no lobby wait)
+    const sp=safeSpawn();
+    gameState.players[fromId]={
+      id:fromId,username:data.username,skin:data.skin,
+      x:sp.x,y:sp.y,hp:MAX_HP,armor:0,ammoInv:{},weapon:'fists',
+      kills:0,money:0,gangId:null,stamina:STAMINA_MAX,sprinting:false,
+      keys:{up:false,down:false,left:false,right:false,sprint:false},
+      aimAngle:0,wantShoot:false,shootCd:0,pendingPickup:null,buildingId:null,dead:false,
+    };
     lobbyPlayers[fromId]={username:data.username,skin:data.skin};
-    renderLobbyPlayers();
-    // Tell client their assigned ID and current lobby
-    connections[fromId]?.send({type:'joined',yourId:fromId,players:lobbyPlayers});
-    // Tell everyone else
-    Object.entries(connections).forEach(([id,c])=>{if(id!==fromId)c.send({type:'playerJoined',peerId:fromId,username:data.username,skin:data.skin});});
+    // Send map + player ID to new client
+    connections[fromId]?.send({type:'joined',yourId:fromId,walls:WALLS,trees:TREES,buildings:BUILDINGS});
+    // Notify others
+    Object.entries(connections).forEach(([id,c])=>{if(id!==fromId)c.send({type:'event',ev:'notify',msg:'🟢 '+data.username+' entrou na zona'});});
   }
   if(data.type==='input'&&gameRunning){
     const p=gameState.players[fromId];
@@ -784,32 +774,26 @@ function hostReceive(fromId,data){
   if(data.type==='createGang'&&gameRunning)   hostCreateGang(fromId,data.name,data.color);
   if(data.type==='joinGang'&&gameRunning)     hostJoinGang(fromId,data.gangId);
   if(data.type==='leaveGang'&&gameRunning)    hostLeaveGang(fromId);
-  if(data.type==='respawn'&&gameRunning)       hostRespawn(fromId);
+  if(data.type==='respawn'&&gameRunning)      hostRespawn(fromId);
 }
 
 // Client receives from host
 function clientReceive(data){
   if(data.type==='joined'){
-    myPeerId=data.yourId; // server-assigned ID
-    lobbyPlayers=data.players;renderLobbyPlayers();
+    myPeerId=data.yourId;
+    WALLS=data.walls;TREES=data.trees;BUILDINGS=data.buildings;
+    grassPatCache=null;
+    gameRunning=true;gameTick=0;
+    requestAnimationFrame(renderLoop);
+    showScreen('screen-game');
+    notify('🟢 Entrou na zona!');
   }
-  if(data.type==='lobbyState'){lobbyPlayers=data.players;renderLobbyPlayers();}
-  if(data.type==='playerJoined'){lobbyPlayers[data.peerId]={username:data.username,skin:data.skin};renderLobbyPlayers();}
-  if(data.type==='start'){WALLS=data.walls;TREES=data.trees;BUILDINGS=data.buildings;initGame();showScreen('screen-game');}
   if(data.type==='state'&&gameRunning) applyServerState(data);
   if(data.type==='event'&&gameRunning) applyEvent(data);
 }
 
 function hostBroadcast(data){
-  Object.values(connections).forEach(c=>c.send(data));
-}
-
-function renderLobbyPlayers(){
-  const el=document.getElementById('lobby-players');
-  el.innerHTML=Object.entries(lobbyPlayers).map(([id,p])=>{
-    const skin=SKINS[p.skin]||SKINS.default;
-    return `<div class="player-entry"><div class="player-dot" style="background:${skin.color}"></div><span style="color:#888">${p.username}</span>${id===myPeerId?'<span style="color:#2a2a2a;font-size:.55rem;margin-left:auto">(você)</span>':''}</div>`;
-  }).join('');
+  Object.values(connections).forEach(c=>{ try{c.send(data);}catch(e){} });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -835,37 +819,9 @@ window.addEventListener('resize',resize);resize();
 
 function initGame(){
   gameRunning=true;gameTick=0;
-  gameState={players:{},zombies:[],bullets:[],drops:[],gangs:{}};
-  grassPat=null;
-
-  // Create all players
+  grassPatCache=null;
   if(isHost){
-    Object.entries(lobbyPlayers).forEach(([id,info])=>{
-      const sp=safeSpawn();
-      gameState.players[id]={
-        id,username:info.username,skin:info.skin,
-        x:sp.x,y:sp.y,hp:MAX_HP,armor:0,
-        ammoInv:{},weapon:'fists',
-        kills:0,money:0,gangId:null,
-        stamina:STAMINA_MAX,sprinting:false,
-        keys:{up:false,down:false,left:false,right:false,sprint:false},
-        aimAngle:0,wantShoot:false,shootCd:0,
-        pendingPickup:null,buildingId:null,
-        dead:false,
-      };
-    });
-    // Solo mode: just me
-    if(myPeerId==='solo'){
-      const sp=safeSpawn();
-      gameState.players['solo']={
-        id:'solo',username:currentUser.username,skin:currentUser.skin,
-        x:sp.x,y:sp.y,hp:MAX_HP,armor:0,ammoInv:{},weapon:'fists',
-        kills:0,money:0,gangId:null,stamina:STAMINA_MAX,sprinting:false,
-        keys:{...myKeys},aimAngle:0,wantShoot:false,shootCd:0,
-        pendingPickup:null,buildingId:null,dead:false,
-      };
-    }
-    spawnWorldDrops();
+    if(!gameState.drops||!gameState.drops.length) spawnWorldDrops();
     gameLoop=setInterval(hostTick,50);
   }
   requestAnimationFrame(renderLoop);
@@ -1128,6 +1084,7 @@ function applyServerState(data){
 
 function applyEvent(data){
   if(data.ev==='phase'){showPhaseFlash(data.msg,data.isDay);}
+  if(data.ev==='notify'){notify(data.msg);}
   if(data.ev==='playerDied'){
     if(data.id===myPeerId){openModal('modal-death');document.getElementById('death-msg').textContent=data.killer==='zombie'?`Devorado pelos zumbis • ${currentUser.kills} kills`:`Eliminado por ${data.killer} • ${currentUser.kills} kills`;}
     else notify(`💀 ${data.username} ${data.killer==='zombie'?'foi devorado':'foi eliminado por '+data.killer}`,true);
