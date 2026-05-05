@@ -725,7 +725,7 @@ function becomeHost(){
     };
     gameRunning=true;gameTick=0;
     gameLoop=setInterval(hostTick,50);
-    requestAnimationFrame(renderLoop);
+    startRenderLoop();
     showScreen('screen-game');
   });
   peer.on('connection',conn=>{
@@ -777,13 +777,12 @@ function hostReceive(fromId,data){
 // Client receives from host
 function clientReceive(data){
   if(data.type==='joined'){
-    myPeerId=data.yourId; // ID que o host usa pra identificar este jogador
+    myPeerId=data.yourId;
     WALLS=data.walls;TREES=data.trees;BUILDINGS=data.buildings;
     grassPatCache=null;
     gameRunning=true;gameTick=0;
-    // Começa a mandar inputs imediatamente
     sendInput();
-    requestAnimationFrame(renderLoop);
+    startRenderLoop();
     showScreen('screen-game');
     notify('🟢 Entrou na zona!');
   }
@@ -805,8 +804,12 @@ let myKeys={up:false,down:false,left:false,right:false,sprint:false};
 let myAim=0,myMouseDown=false,myLastShot=0;
 let myPendingPickup=null,myBuildingId=null;
 let flashAlpha=0,noAmmoTimer=0,phaseFlashTimer=0;
-let grassPat=null;
-let lastInputSent='';
+let renderLoopRunning=false;
+function startRenderLoop(){
+  if(renderLoopRunning)return;
+  renderLoopRunning=true;
+  requestAnimationFrame(renderLoop);
+}
 
 const canvas=document.getElementById('canvas');
 const ctx=canvas.getContext('2d');
@@ -823,7 +826,7 @@ function initGame(){
     if(!gameState.drops||!gameState.drops.length) spawnWorldDrops();
     gameLoop=setInterval(hostTick,50);
   }
-  requestAnimationFrame(renderLoop);
+  startRenderLoop();
 }
 
 function safeSpawn(){let x,y,t=0;do{x=rnd(200,MAP_W-200);y=rnd(200,MAP_H-200);t++;}while(t<40&&circleWall(x,y,PR+4));return{x,y};}
@@ -936,17 +939,26 @@ function hostTick(){
   for(const p of Object.values(gameState.players)){
     if(p.dead||p.hp<=0)continue;
 
-    const wantSprint=p.keys.sprint&&(p.keys.up||p.keys.down||p.keys.left||p.keys.right);
-    const canSprint=wantSprint&&p.stamina>5;
-    if(canSprint)p.stamina=Math.max(0,p.stamina-STAMINA_DRAIN);else p.stamina=Math.min(STAMINA_MAX,p.stamina+STAMINA_REGEN);
+    const moving=p.keys.up||p.keys.down||p.keys.left||p.keys.right;
+    const canSprint=p.keys.sprint&&moving&&p.stamina>5;
+    if(canSprint) p.stamina=Math.max(0,p.stamina-STAMINA_DRAIN);
+    else if(!p.keys.sprint) p.stamina=Math.min(STAMINA_MAX,p.stamina+STAMINA_REGEN);
+    else if(p.stamina<=0) p.stamina=Math.min(STAMINA_MAX,p.stamina+STAMINA_REGEN*0.3); // regen lento quando exausto
     p.sprinting=canSprint;
     const spd=canSprint?PLAYER_SPRINT:PLAYER_SPEED;
 
     let dx=0,dy=0;
-    if(p.keys.up)dy-=1;if(p.keys.down)dy+=1;if(p.keys.left)dx-=1;if(p.keys.right)dx+=1;
-    if(dx&&dy){dx*=0.707;dy*=0.707;}
-    const nx=Math.max(PR,Math.min(MAP_W-PR,p.x+dx*spd)),ny=Math.max(PR,Math.min(MAP_H-PR,p.y+dy*spd));
-    if(!circleWall(nx,p.y,PR))p.x=nx;if(!circleWall(p.x,ny,PR))p.y=ny;
+    if(p.keys.up)dy-=1;
+    if(p.keys.down)dy+=1;
+    if(p.keys.left)dx-=1;
+    if(p.keys.right)dx+=1;
+    // Normaliza diagonal pra não ser mais rápido
+    const dlen=Math.sqrt(dx*dx+dy*dy)||1;
+    if(dx!==0||dy!==0){dx/=dlen;dy/=dlen;}
+    const nx=Math.max(PR,Math.min(MAP_W-PR,p.x+dx*spd));
+    const ny=Math.max(PR,Math.min(MAP_H-PR,p.y+dy*spd));
+    if(!circleWall(nx,p.y,PR))p.x=nx;
+    if(!circleWall(p.x,ny,PR))p.y=ny;
     p.buildingId=insideBuilding(p.x,p.y)?.id??null;
 
     // Gang regen
@@ -1410,7 +1422,11 @@ function drawMinimap(iP){
   mmCtx.strokeStyle='#1a3d0a';mmCtx.lineWidth=1;mmCtx.strokeRect(0,0,mw,mh);
 }
 
-function stopGame(){gameRunning=false;if(gameLoop){clearInterval(gameLoop);gameLoop=null;}}
+function stopGame(){
+  gameRunning=false;
+  renderLoopRunning=false;
+  if(gameLoop){clearInterval(gameLoop);gameLoop=null;}
+}
 
 // ══════════════════════════════════════════════════════════════
 // GANG & SHOP UI
