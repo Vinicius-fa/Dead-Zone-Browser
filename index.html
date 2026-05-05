@@ -6,7 +6,7 @@
 <title>☣ DEAD ZONE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <style>
 /* ── RESET & ROOT ──────────────────────────────────────────── */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -277,10 +277,8 @@ input{font-family:'Share Tech Mono',monospace;outline:none;border:none}
 
     <!-- Play options -->
     <div class="play-opts hidden" id="play-opts">
-      <button class="btn-primary" onclick="openCreateRoom()" style="font-size:1.1rem;padding:12px">➕ CRIAR SALA</button>
-      <button class="btn-primary" onclick="openJoinByCode()" style="font-size:1.1rem;padding:12px;background:#1a3050">🔑 ENTRAR COM CÓDIGO</button>
-      <button class="btn-secondary" onclick="openRoomBrowser()" style="font-size:1rem;padding:10px">🌐 SALAS PÚBLICAS</button>
-      <button class="btn-secondary" onclick="openLeaderboard()" style="font-size:1rem;padding:10px">🏆 RANKING GLOBAL</button>
+      <button class="btn-primary" onclick="joinServer()" style="font-size:1.4rem;padding:14px">▶ JOGAR</button>
+      <div style="font-size:.6rem;color:#2a2a2a;text-align:center;margin-top:-8px">Você entra automaticamente na sala com seus amigos</div>
     </div>
 
     <div class="hints-row">
@@ -300,84 +298,8 @@ input{font-family:'Share Tech Mono',monospace;outline:none;border:none}
   <div class="menu-content">
     <div class="logo" style="font-size:2rem">☣ DEAD ZONE</div>
     <div style="color:#444;font-size:.75rem;letter-spacing:3px" id="room-status">Conectando...</div>
-    <div id="room-code-display" style="display:none;flex-direction:column;align-items:center;gap:6px;margin-top:8px">
-      <div style="color:#666;font-size:.6rem;letter-spacing:3px">CÓDIGO DA SALA</div>
-      <div id="room-code-value" style="font-family:'Creepster',cursive;font-size:2.2rem;color:var(--toxic);letter-spacing:8px;cursor:pointer" onclick="copyRoomCode()" title="Clique para copiar"></div>
-      <div style="color:#444;font-size:.55rem">clique para copiar • compartilhe com amigos</div>
-    </div>
     <button class="btn-secondary" style="margin-top:8px" onclick="backToMenu()">← VOLTAR</button>
   </div>
-</div>
-
-<!-- ══════════════ CREATE ROOM MODAL ══════════════ -->
-<div class="modal-overlay hidden" id="modal-create-room">
-  <div class="modal">
-    <div class="modal-title" style="color:var(--toxic)">➕ CRIAR SALA</div>
-    <div class="field">
-      <label>Nome da sala</label>
-      <input id="cr-name" type="text" maxlength="24" placeholder="Sala do fulano" autocomplete="off"/>
-    </div>
-    <div class="field">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input id="cr-public" type="checkbox" checked style="width:auto"/>
-        <span>Sala pública (aparece na lista)</span>
-      </label>
-    </div>
-    <div class="modal-btns">
-      <button class="mbtn" onclick="closeModal('modal-create-room')">CANCELAR</button>
-      <button class="mbtn ok" onclick="confirmCreateRoom()">CRIAR</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ JOIN BY CODE MODAL ══════════════ -->
-<div class="modal-overlay hidden" id="modal-join-code">
-  <div class="modal">
-    <div class="modal-title" style="color:var(--toxic)">🔑 ENTRAR COM CÓDIGO</div>
-    <div class="field">
-      <label>Código da sala (6 letras)</label>
-      <input id="jc-code" type="text" maxlength="6" placeholder="ABC123" autocomplete="off" style="text-transform:uppercase;font-size:1.6rem;letter-spacing:8px;text-align:center;font-family:'Creepster',cursive;color:var(--toxic)"/>
-    </div>
-    <div class="modal-btns">
-      <button class="mbtn" onclick="closeModal('modal-join-code')">CANCELAR</button>
-      <button class="mbtn ok" onclick="confirmJoinByCode()">ENTRAR</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ ROOM BROWSER MODAL ══════════════ -->
-<div class="modal-overlay hidden" id="modal-rooms">
-  <div class="modal" style="max-width:560px">
-    <div class="modal-title" style="color:var(--toxic);display:flex;justify-content:space-between;align-items:center">
-      <span>🌐 SALAS PÚBLICAS</span>
-      <button class="mbtn" style="padding:4px 10px;font-size:.7rem" onclick="refreshRooms()">↻ ATUALIZAR</button>
-    </div>
-    <div id="rooms-list" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin:8px 0">
-      <div style="color:#444;text-align:center;padding:20px;font-size:.8rem">Carregando salas...</div>
-    </div>
-    <div class="modal-btns">
-      <button class="mbtn" onclick="closeModal('modal-rooms')">✕ FECHAR</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ LEADERBOARD MODAL ══════════════ -->
-<div class="modal-overlay hidden" id="modal-leaderboard">
-  <div class="modal" style="max-width:560px">
-    <div class="modal-title" style="color:var(--gold)">🏆 RANKING GLOBAL</div>
-    <div id="lb-list" style="max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin:8px 0">
-      <div style="color:#444;text-align:center;padding:20px;font-size:.8rem">Carregando...</div>
-    </div>
-    <div class="modal-btns">
-      <button class="mbtn" onclick="closeModal('modal-leaderboard')">✕ FECHAR</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ IN-GAME CHAT ══════════════ -->
-<div id="chat-box" style="display:none;position:fixed;bottom:14px;left:14px;width:320px;max-height:240px;z-index:25;font-size:.7rem">
-  <div id="chat-msgs" style="max-height:180px;overflow-y:auto;background:rgba(0,0,0,.55);padding:6px 8px;display:flex;flex-direction:column;gap:2px;color:#aaa;border-left:2px solid var(--toxic)"></div>
-  <input id="chat-input" maxlength="120" placeholder="Pressione T para conversar..." style="width:100%;padding:6px 8px;background:rgba(0,0,0,.85);color:var(--toxic);border:1px solid #1a1a1a;border-top:none;display:none"/>
 </div>
 
 <!-- ══════════════ GAME SCREEN ══════════════ -->
@@ -647,19 +569,16 @@ function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classL
 function showJoinUI(){document.getElementById('join-ui').classList.remove('hidden');document.getElementById('join-code').focus();}
 function hideJoinUI(){document.getElementById('join-ui').classList.add('hidden');}
 
-async function backToMenu(){
+function backToMenu(){
   stopGame();
-  hideChatBox();
-  try{ await submitStats(); }catch(e){}
-  try{ await teardownNetwork(); }catch(e){}
-  lobbyPlayers={};
+  if(peer){peer.destroy();peer=null;}
+  connections={};lobbyPlayers={};
   gameState={players:{},zombies:[],bullets:[],drops:[],gangs:{}};
-  myPeerId=null;
+  isHost=false;myPeerId=null;
   document.getElementById('modal-death').classList.add('hidden');
   document.getElementById('modal-shop').classList.add('hidden');
   document.getElementById('modal-gang').classList.add('hidden');
-  document.getElementById('room-code-display').style.display='none';
-  shopModalOpen=false;gangModalOpen=false;
+  shopOpen=false;gangModalOpen=false;
   showScreen('screen-menu');
   if(currentUser){
     document.getElementById('stat-kills').textContent=currentUser.kills;
@@ -746,268 +665,90 @@ function dist(a,b){return Math.sqrt(dist2(a,b));}
 let _id=1;function uid(){return _id++;}
 
 // ══════════════════════════════════════════════════════════════
-// NETWORKING — Salas com código + WebRTC nativo + Supabase signaling
+// NETWORKING — Sala única automática
 // ══════════════════════════════════════════════════════════════
-const SUPA_URL='https://raxbnsnojbwzjwpbulqm.supabase.co';
-const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJheGJuc25vamJ3emp3cGJ1bHFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1ODE2NjAsImV4cCI6MjA5MzE1NzY2MH0.GeviGiFiaWkNkJNn3zruzUtXtR7jb1CWejspGM8FxgU';
-const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
-const RTC_CFG={iceServers:[
-  {urls:'stun:stun.l.google.com:19302'},
-  {urls:'stun:stun1.l.google.com:19302'},
-  {urls:'stun:global.stun.twilio.com:3478'},
-]};
-
-let connections={};      // peerId -> {pc, dc, open, send(), close()}
-let isHost=false;
-let myPeerId=null;       // unique id for this client
-let currentRoomCode=null;
-let currentRoomId=null;
+// ID fixo da sala — todos tentam se conectar a este peer
+// Se ele não existir, o jogador vira host com esse ID
+const ROOM_ID = 'deadzone-main-room-v1';
+let peer=null,connections={},isHost=false,myPeerId=null;
 let lobbyPlayers={};
-let signalChannel=null;  // realtime subscription
-let heartbeatTimer=null;
-let processedSignalIds=new Set();
 
-function genPeerId(){return 'p_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);}
-function genRoomCode(){const c='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
+function joinServer(){
+  showScreen('screen-lobby');
+  document.getElementById('room-status').textContent='Conectando à sala...';
+  peer=new Peer(undefined,{debug:0});
+  peer.on('open',id=>{
+    myPeerId=id; // ID temporário até o host confirmar
+    // Tenta conectar ao host fixo
+    const conn=peer.connect(ROOM_ID,{reliable:true,serialization:'json'});
+    let connected=false;
 
-// ── Wrapper: makes WebRTC DataChannel look like PeerJS connection ───
-function makeConnWrapper(peerId,pc,dc){
-  const w={
-    pc,dc,peer:peerId,open:false,
-    send(data){ if(this.open){ try{this.dc.send(JSON.stringify(data));}catch(e){} } },
-    close(){ try{this.dc?.close();}catch(e){} try{this.pc?.close();}catch(e){} this.open=false; },
-  };
-  return w;
+    conn.on('open',()=>{
+      connected=true;
+      isHost=false;
+      connections['host']=conn;
+      document.getElementById('room-status').textContent='Conectado! Entrando...';
+      conn.send({type:'join',username:currentUser.username,skin:currentUser.skin});
+    });
+    conn.on('data',data=>clientReceive(data));
+    conn.on('close',()=>{
+      notify('Host saiu, reconectando...',true);
+      setTimeout(()=>{if(!isHost)becomeHost();},2000);
+    });
+    conn.on('error',()=>{if(!connected)becomeHost();});
+
+    // Timeout: se não conectar em 3s, vira host
+    setTimeout(()=>{if(!connected){conn.close();becomeHost();}},3000);
+  });
+  peer.on('error',()=>becomeHost());
 }
 
-// ── Send a signaling msg via Supabase ────────────────────────────
-async function sendSignal(toPeer,type,payload){
-  await sb.from('room_signals').insert({
-    room_code:currentRoomCode, from_peer:myPeerId, to_peer:toPeer, signal_type:type, payload
+function becomeHost(){
+  if(peer){peer.destroy();peer=null;}
+  isHost=true;
+  connections={};
+  peer=new Peer(ROOM_ID,{debug:0});
+  peer.on('open',()=>{
+    myPeerId='host';
+    document.getElementById('room-status').textContent='Sala criada! Iniciando...';
+    buildMap();
+    gameState={players:{},zombies:[],bullets:[],drops:[],gangs:{}};
+    spawnWorldDrops();
+    // Cria o jogador host
+    const sp=safeSpawn();
+    gameState.players['host']={
+      id:'host',username:currentUser.username,skin:currentUser.skin,
+      x:sp.x,y:sp.y,hp:MAX_HP,armor:0,ammoInv:{},weapon:'fists',
+      kills:0,money:0,gangId:null,stamina:STAMINA_MAX,sprinting:false,
+      keys:{up:false,down:false,left:false,right:false,sprint:false},
+      aimAngle:0,wantShoot:false,shootCd:0,pendingPickup:null,buildingId:null,dead:false,
+    };
+    gameRunning=true;gameTick=0;
+    gameLoop=setInterval(hostTick,50);
+    requestAnimationFrame(renderLoop);
+    showScreen('screen-game');
+  });
+  peer.on('connection',conn=>{
+    conn.on('open',()=>{
+      connections[conn.peer]=conn;
+      conn.on('data',data=>hostReceive(conn.peer,data));
+      conn.on('close',()=>{
+        delete connections[conn.peer];
+        delete lobbyPlayers[conn.peer];
+        if(gameRunning)removePlayer(conn.peer);
+        notify('🔴 Jogador saiu');
+      });
+    });
+  });
+  peer.on('error',e=>{
+    document.getElementById('room-status').textContent='Erro: '+e.type;
   });
 }
 
-// ── Subscribe to signaling for our peer ──────────────────────────
-function subscribeToSignals(){
-  if(signalChannel) try{sb.removeChannel(signalChannel);}catch(e){}
-  signalChannel=sb.channel('sig_'+currentRoomCode+'_'+myPeerId)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'room_signals',filter:`to_peer=eq.${myPeerId}`},
-      payload=>handleSignal(payload.new))
-    .subscribe();
-}
-
-async function handleSignal(sig){
-  if(processedSignalIds.has(sig.id))return;
-  processedSignalIds.add(sig.id);
-  if(sig.room_code!==currentRoomCode)return;
-  const from=sig.from_peer;
-
-  if(sig.signal_type==='offer' && isHost){
-    // New client wants to connect. Create RTCPeerConnection.
-    const pc=new RTCPeerConnection(RTC_CFG);
-    const conn=makeConnWrapper(from,pc,null);
-    connections[from]=conn;
-    pc.onicecandidate=e=>{ if(e.candidate) sendSignal(from,'ice',e.candidate); };
-    pc.ondatachannel=ev=>{
-      conn.dc=ev.channel;
-      ev.channel.onopen=()=>{ conn.open=true; };
-      ev.channel.onmessage=m=>{ try{hostReceive(from,JSON.parse(m.data));}catch(e){} };
-      ev.channel.onclose=()=>{
-        conn.open=false; delete connections[from]; delete lobbyPlayers[from];
-        if(gameRunning)removePlayer(from);
-        notify('🔴 Jogador saiu');
-      };
-    };
-    await pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
-    const ans=await pc.createAnswer();
-    await pc.setLocalDescription(ans);
-    sendSignal(from,'answer',{type:ans.type,sdp:ans.sdp});
-  }
-  else if(sig.signal_type==='answer' && !isHost){
-    const conn=connections['host'];
-    if(conn?.pc) await conn.pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
-  }
-  else if(sig.signal_type==='ice'){
-    const conn=isHost?connections[from]:connections['host'];
-    if(conn?.pc){ try{await conn.pc.addIceCandidate(new RTCIceCandidate(sig.payload));}catch(e){} }
-  }
-}
-
-// ── Cleanup signals & realtime ────────────────────────────────────
-async function teardownNetwork(){
-  if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
-  Object.values(connections).forEach(c=>c.close?.());
-  connections={};
-  if(signalChannel){ try{await sb.removeChannel(signalChannel);}catch(e){} signalChannel=null; }
-  if(isHost && currentRoomId){
-    try{ await sb.from('rooms').delete().eq('id',currentRoomId); }catch(e){}
-  }
-  processedSignalIds.clear();
-  currentRoomCode=null; currentRoomId=null; isHost=false;
-}
-
-// ── HOST: create room ────────────────────────────────────────────
-async function hostCreateRoom(name,isPublic){
-  showScreen('screen-lobby');
-  document.getElementById('room-status').textContent='Criando sala...';
-  myPeerId=genPeerId();
-  isHost=true;
-  const code=genRoomCode();
-  currentRoomCode=code;
-
-  const {data,error}=await sb.from('rooms').insert({
-    code, name:name.slice(0,24)||'Sala sem nome',
-    host_peer_id:myPeerId, host_username:currentUser.username,
-    is_public:!!isPublic, player_count:1, status:'lobby',
-  }).select().single();
-  if(error){
-    document.getElementById('room-status').textContent='Erro ao criar sala: '+error.message;
-    return;
-  }
-  currentRoomId=data.id;
-
-  // Show code on lobby screen
-  document.getElementById('room-code-display').style.display='flex';
-  document.getElementById('room-code-value').textContent=code;
-  document.getElementById('room-status').textContent='Sala pronta — esperando jogadores (você pode começar a jogar)';
-
-  subscribeToSignals();
-
-  // Heartbeat
-  heartbeatTimer=setInterval(async()=>{
-    const pc=Object.keys(connections).length+1;
-    try{ await sb.from('rooms').update({last_heartbeat:new Date().toISOString(),player_count:pc}).eq('id',currentRoomId); }catch(e){}
-  },15000);
-
-  // Start the game immediately as host
-  buildMap();
-  gameState={players:{},zombies:[],bullets:[],drops:[],gangs:{}};
-  spawnWorldDrops();
-  const sp=safeSpawn();
-  gameState.players[myPeerId]={
-    id:myPeerId,username:currentUser.username,skin:currentUser.skin,
-    x:sp.x,y:sp.y,hp:MAX_HP,armor:0,ammoInv:{},weapon:'fists',
-    kills:0,money:0,gangId:null,stamina:STAMINA_MAX,sprinting:false,
-    keys:{up:false,down:false,left:false,right:false,sprint:false},
-    aimAngle:0,wantShoot:false,shootCd:0,pendingPickup:null,buildingId:null,dead:false,
-  };
-  gameRunning=true;gameTick=0;
-  gameLoop=setInterval(hostTick,50);
-  requestAnimationFrame(renderLoop);
-  setTimeout(()=>{ showScreen('screen-game'); showChatBox(); notify('🟢 Sala '+code+' criada!',false,true); },800);
-}
-
-// ── CLIENT: join room by code ────────────────────────────────────
-async function clientJoinRoom(code){
-  code=code.toUpperCase().trim();
-  if(!/^[A-Z0-9]{6}$/.test(code)){ notify('Código inválido',true); return; }
-  showScreen('screen-lobby');
-  document.getElementById('room-code-display').style.display='none';
-  document.getElementById('room-status').textContent='Procurando sala...';
-
-  const {data:room,error}=await sb.from('rooms').select('*').eq('code',code).maybeSingle();
-  if(error||!room){
-    document.getElementById('room-status').textContent='Sala não encontrada';
-    setTimeout(backToMenu,1800); return;
-  }
-  // stale check
-  if(new Date(room.last_heartbeat).getTime() < Date.now()-60000){
-    document.getElementById('room-status').textContent='Sala expirada';
-    setTimeout(backToMenu,1800); return;
-  }
-  myPeerId=genPeerId();
-  isHost=false;
-  currentRoomCode=code;
-  currentRoomId=room.id;
-
-  subscribeToSignals();
-  document.getElementById('room-status').textContent='Conectando ao host...';
-
-  // Create RTCPeerConnection -> host
-  const pc=new RTCPeerConnection(RTC_CFG);
-  const dc=pc.createDataChannel('game',{ordered:true});
-  const conn=makeConnWrapper(room.host_peer_id,pc,dc);
-  connections['host']=conn;
-
-  pc.onicecandidate=e=>{ if(e.candidate) sendSignal(room.host_peer_id,'ice',e.candidate); };
-  dc.onopen=()=>{
-    conn.open=true;
-    document.getElementById('room-status').textContent='Conectado! Entrando...';
-    conn.send({type:'join',username:currentUser.username,skin:currentUser.skin});
-  };
-  dc.onmessage=m=>{ try{clientReceive(JSON.parse(m.data));}catch(e){} };
-  dc.onclose=()=>{
-    conn.open=false;
-    notify('🔴 Conexão perdida com o host',true);
-    setTimeout(()=>{ if(!isHost) backToMenu(); },2000);
-  };
-
-  const offer=await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await sendSignal(room.host_peer_id,'offer',{type:offer.type,sdp:offer.sdp});
-
-  // Timeout
-  setTimeout(()=>{
-    if(!conn.open){
-      document.getElementById('room-status').textContent='Falha ao conectar — host pode estar offline';
-      setTimeout(backToMenu,2200);
-    }
-  },10000);
-}
-
-function hostBroadcast(data){
-  Object.values(connections).forEach(c=>{ try{c.send(data);}catch(e){} });
-}
-
-// Chat helpers
-function showChatBox(){ document.getElementById('chat-box').style.display='block'; }
-function hideChatBox(){ document.getElementById('chat-box').style.display='none'; document.getElementById('chat-input').style.display='none'; document.getElementById('chat-input').blur(); }
-function pushChat(user,msg,system=false){
-  const el=document.createElement('div');
-  el.innerHTML=system?`<span style="color:#666">${msg}</span>`:`<span style="color:var(--toxic)">${user}:</span> <span style="color:#ccc">${msg}</span>`;
-  const c=document.getElementById('chat-msgs');
-  c.appendChild(el); while(c.children.length>40)c.removeChild(c.firstChild);
-  c.scrollTop=c.scrollHeight;
-}
-function sendChatMsg(text){
-  text=(text||'').trim().slice(0,120); if(!text)return;
-  const payload={type:'chat',username:currentUser.username,msg:text};
-  if(isHost){ pushChat(currentUser.username,text); hostBroadcast(payload); }
-  else{ connections['host']?.send(payload); pushChat(currentUser.username,text); }
-}
-
-// ── Submit stats to global leaderboard ────────────────────────────
-async function submitStats(){
-  if(!currentUser?.username)return;
-  try{
-    const u=currentUser.username.toLowerCase();
-    const {data:existing}=await sb.from('leaderboard').select('*').eq('username',u).maybeSingle();
-    if(existing){
-      await sb.from('leaderboard').update({
-        kills: existing.kills + (currentUser.kills - (currentUser._lastSubmittedKills||0)),
-        deaths: existing.deaths + (currentUser.deaths - (currentUser._lastSubmittedDeaths||0)),
-        money: currentUser.money,
-        skin: currentUser.skin,
-        games_played: existing.games_played+1,
-        updated_at: new Date().toISOString(),
-      }).eq('username',u);
-    }else{
-      await sb.from('leaderboard').insert({
-        username:u, skin:currentUser.skin,
-        kills:currentUser.kills, deaths:currentUser.deaths,
-        money:currentUser.money, games_played:1,
-      });
-    }
-    currentUser._lastSubmittedKills=currentUser.kills;
-    currentUser._lastSubmittedDeaths=currentUser.deaths;
-  }catch(e){ console.warn('submitStats failed',e); }
-}
-
-// ══════════════════════════════════════════════════════════════
-// HOST RECEIVE / CLIENT RECEIVE
-// ══════════════════════════════════════════════════════════════
+// Host receives from clients
 function hostReceive(fromId,data){
   if(data.type==='join'){
+    // Add player to game immediately (no lobby wait)
     const sp=safeSpawn();
     gameState.players[fromId]={
       id:fromId,username:data.username,skin:data.skin,
@@ -1017,20 +758,14 @@ function hostReceive(fromId,data){
       aimAngle:0,wantShoot:false,shootCd:0,pendingPickup:null,buildingId:null,dead:false,
     };
     lobbyPlayers[fromId]={username:data.username,skin:data.skin};
+    // Send map + player ID to new client
     connections[fromId]?.send({type:'joined',yourId:fromId,walls:WALLS,trees:TREES,buildings:BUILDINGS});
+    // Notify others
     Object.entries(connections).forEach(([id,c])=>{if(id!==fromId)c.send({type:'event',ev:'notify',msg:'🟢 '+data.username+' entrou na zona'});});
-    pushChat('',`🟢 ${data.username} entrou`,true);
-    hostBroadcast({type:'chat',username:'',msg:`🟢 ${data.username} entrou`,system:true});
   }
   if(data.type==='input'&&gameRunning){
     const p=gameState.players[fromId];
     if(p){p.keys=data.keys;p.aimAngle=data.aim||0;if(data.shoot)p.wantShoot=true;}
-  }
-  if(data.type==='chat'){
-    const safe=(data.msg||'').slice(0,120);
-    pushChat(data.username,safe);
-    // relay to others
-    Object.entries(connections).forEach(([id,c])=>{if(id!==fromId)c.send({type:'chat',username:data.username,msg:safe});});
   }
   if(data.type==='pickupWeapon'&&gameRunning) hostPickupWeapon(fromId,data.dropId);
   if(data.type==='createGang'&&gameRunning)   hostCreateGang(fromId,data.name,data.color);
@@ -1039,23 +774,26 @@ function hostReceive(fromId,data){
   if(data.type==='respawn'&&gameRunning)      hostRespawn(fromId);
 }
 
+// Client receives from host
 function clientReceive(data){
   if(data.type==='joined'){
-    myPeerId=data.yourId;
+    myPeerId=data.yourId; // ID que o host usa pra identificar este jogador
     WALLS=data.walls;TREES=data.trees;BUILDINGS=data.buildings;
     grassPatCache=null;
     gameRunning=true;gameTick=0;
+    // Começa a mandar inputs imediatamente
     sendInput();
     requestAnimationFrame(renderLoop);
     showScreen('screen-game');
-    showChatBox();
     notify('🟢 Entrou na zona!');
   }
   if(data.type==='state'&&gameRunning) applyServerState(data);
   if(data.type==='event'&&gameRunning) applyEvent(data);
-  if(data.type==='chat') pushChat(data.username,data.msg,!!data.system);
 }
 
+function hostBroadcast(data){
+  Object.values(connections).forEach(c=>{ try{c.send(data);}catch(e){} });
+}
 
 // ══════════════════════════════════════════════════════════════
 // GAME STATE
@@ -1740,116 +1478,6 @@ function notify(text,bad=false,gold=false){
   const el=document.createElement('div');el.className='notif'+(bad?' bad':gold?' gold':'');el.textContent=text;
   document.getElementById('notifs').appendChild(el);setTimeout(()=>el.remove(),3000);
 }
-
-// ══════════════════════════════════════════════════════════════
-// ROOM UI (create / join / browse / leaderboard)
-// ══════════════════════════════════════════════════════════════
-function openCreateRoom(){
-  document.getElementById('cr-name').value=(currentUser?.username||'Sala')+"'s zone";
-  document.getElementById('cr-public').checked=true;
-  openModal('modal-create-room');
-}
-function confirmCreateRoom(){
-  const name=document.getElementById('cr-name').value.trim();
-  const isPublic=document.getElementById('cr-public').checked;
-  closeModal('modal-create-room');
-  hostCreateRoom(name,isPublic);
-}
-function openJoinByCode(){
-  document.getElementById('jc-code').value='';
-  openModal('modal-join-code');
-  setTimeout(()=>document.getElementById('jc-code').focus(),50);
-}
-function confirmJoinByCode(){
-  const code=document.getElementById('jc-code').value.trim().toUpperCase();
-  closeModal('modal-join-code');
-  clientJoinRoom(code);
-}
-async function openRoomBrowser(){
-  openModal('modal-rooms');
-  await refreshRooms();
-}
-async function refreshRooms(){
-  const list=document.getElementById('rooms-list');
-  list.innerHTML='<div style="color:#444;text-align:center;padding:20px;font-size:.8rem">Carregando salas...</div>';
-  // Cleanup stale rooms (best-effort, server-side function)
-  try{ await sb.rpc('cleanup_stale_rooms'); }catch(e){}
-  const since=new Date(Date.now()-60000).toISOString();
-  const {data,error}=await sb.from('rooms').select('*').eq('is_public',true).gt('last_heartbeat',since).order('created_at',{ascending:false}).limit(40);
-  if(error){ list.innerHTML='<div style="color:var(--blood);text-align:center;padding:20px">Erro: '+error.message+'</div>'; return; }
-  if(!data||!data.length){ list.innerHTML='<div style="color:#444;text-align:center;padding:20px;font-size:.8rem">Nenhuma sala pública agora.<br><br>Crie a sua e seja o primeiro!</div>'; return; }
-  list.innerHTML=data.map(r=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;background:#0e0e0e;border:1px solid #1a1a1a;padding:10px 12px;gap:10px">
-      <div style="flex:1;min-width:0">
-        <div style="color:#ccc;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.name)}</div>
-        <div style="color:#666;font-size:.62rem;margin-top:2px">host: ${escapeHtml(r.host_username)} • ${r.player_count}/${r.max_players} jogadores • <span style="color:var(--toxic);font-family:'Creepster',cursive;letter-spacing:2px">${r.code}</span></div>
-      </div>
-      <button class="mbtn ok" style="padding:6px 14px;font-size:.7rem" onclick="joinRoomFromList('${r.code}')">ENTRAR</button>
-    </div>
-  `).join('');
-}
-function joinRoomFromList(code){
-  closeModal('modal-rooms');
-  clientJoinRoom(code);
-}
-async function openLeaderboard(){
-  openModal('modal-leaderboard');
-  const list=document.getElementById('lb-list');
-  list.innerHTML='<div style="color:#444;text-align:center;padding:20px;font-size:.8rem">Carregando ranking...</div>';
-  const {data,error}=await sb.from('leaderboard').select('*').order('kills',{ascending:false}).limit(50);
-  if(error){ list.innerHTML='<div style="color:var(--blood);text-align:center;padding:20px">Erro: '+error.message+'</div>'; return; }
-  if(!data||!data.length){ list.innerHTML='<div style="color:#444;text-align:center;padding:20px;font-size:.8rem">Ranking ainda vazio. Jogue e suba ele!</div>'; return; }
-  list.innerHTML=data.map((r,i)=>{
-    const skin=SKINS[r.skin]||SKINS.default;
-    const me=r.username===currentUser?.username?.toLowerCase();
-    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1).padStart(2,'0');
-    return `<div style="display:flex;align-items:center;gap:10px;background:${me?'#120f00':'#0e0e0e'};border:1px solid ${me?'var(--gold)':'#1a1a1a'};padding:8px 12px;font-size:.78rem">
-      <div style="width:28px;text-align:center;color:${i<3?'var(--gold)':'#666'};font-weight:bold">${medal}</div>
-      <div style="width:18px;height:18px;border-radius:50%;background:${skin.color};border:1px solid #1a1a1a"></div>
-      <div style="flex:1;color:#ccc">${escapeHtml(r.username)}</div>
-      <div style="color:var(--blood)">${r.kills} k</div>
-      <div style="color:#666;font-size:.65rem">${r.deaths} d</div>
-      <div style="color:var(--gold);font-size:.7rem">$${r.money}</div>
-    </div>`;
-  }).join('');
-}
-function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function copyRoomCode(){
-  const code=document.getElementById('room-code-value').textContent;
-  if(!code)return;
-  navigator.clipboard?.writeText(code).then(()=>notify('📋 Código '+code+' copiado!',false,true));
-}
-window.openCreateRoom=openCreateRoom;
-window.confirmCreateRoom=confirmCreateRoom;
-window.openJoinByCode=openJoinByCode;
-window.confirmJoinByCode=confirmJoinByCode;
-window.openRoomBrowser=openRoomBrowser;
-window.refreshRooms=refreshRooms;
-window.joinRoomFromList=joinRoomFromList;
-window.openLeaderboard=openLeaderboard;
-window.copyRoomCode=copyRoomCode;
-window.backToMenu=backToMenu;
-
-// ══════════════════════════════════════════════════════════════
-// IN-GAME CHAT (T to open, Enter to send, Esc to cancel)
-// ══════════════════════════════════════════════════════════════
-let chatActive=false;
-const chatInputEl=document.getElementById('chat-input');
-window.addEventListener('keydown',e=>{
-  if(!gameRunning)return;
-  if(chatActive){
-    if(e.key==='Enter'){ e.preventDefault(); sendChatMsg(chatInputEl.value); chatInputEl.value=''; chatInputEl.blur(); chatInputEl.style.display='none'; chatActive=false; }
-    else if(e.key==='Escape'){ e.preventDefault(); chatInputEl.value=''; chatInputEl.blur(); chatInputEl.style.display='none'; chatActive=false; }
-    return;
-  }
-  if((e.key==='t'||e.key==='T') && !shopModalOpen && !gangModalOpen){
-    e.preventDefault();
-    chatInputEl.style.display='block'; chatInputEl.focus(); chatActive=true;
-    // freeze movement
-    myKeys={up:false,down:false,left:false,right:false,sprint:false}; sendInput();
-  }
-},true);
-chatInputEl.addEventListener('keydown',e=>{ e.stopPropagation(); });
 </script>
 </body>
 </html>
